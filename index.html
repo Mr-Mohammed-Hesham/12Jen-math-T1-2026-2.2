@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title> قسمة كثيرات الحدود </title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { 
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .pdf-container {
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .page-canvas {
+            max-width: 100%;
+            height: auto;
+        }
+        .nav-button {
+            transition: all 0.3s ease;
+        }
+        .nav-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .page-info {
+            background: rgba(255,255,255,0.95);
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <!-- Header -->
+    <header class="max-w-5xl mx-auto mb-6 text-center">
+        <h1 class="text-4xl font-bold text-white mb-2 drop-shadow-lg">📚 قسمة كثيرات الحدود </h1>
+        <p class="text-blue-100 text-lg">Interactive Math. Lesson Viewer</p>
+    </header>
+
+    <!-- PDF Viewer Controls -->
+    <div class="max-w-5xl mx-auto mb-4 flex flex-wrap justify-center gap-3">
+        <button onclick="prevPage()" class="nav-button bg-white text-indigo-700 px-6 py-3 rounded-lg font-semibold flex items-center gap-2">
+            <span>◀</span> Previous
+        </button>
+        
+        <div class="page-info px-6 py-3 rounded-lg font-semibold text-indigo-900 flex items-center gap-2">
+            <span>Page</span>
+            <span id="current-page" class="text-indigo-700 font-bold">1</span>
+            <span>of</span>
+            <span id="total-pages" class="text-indigo-700 font-bold">-</span>
+        </div>
+
+        <button onclick="nextPage()" class="nav-button bg-white text-indigo-700 px-6 py-3 rounded-lg font-semibold flex items-center gap-2">
+            Next <span>▶</span>
+        </button>
+    </div>
+
+    <!-- Zoom Controls -->
+    <div class="max-w-5xl mx-auto mb-4 flex justify-center gap-3">
+        <button onclick="zoomOut()" class="nav-button bg-indigo-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-indigo-700">
+            🔍 Zoom Out
+        </button>
+        <button onclick="resetZoom()" class="nav-button bg-indigo-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-indigo-700">
+            ⟲ Reset
+        </button>
+        <button onclick="zoomIn()" class="nav-button bg-indigo-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-indigo-700">
+            Zoom In 🔍
+        </button>
+    </div>
+
+    <!-- PDF Canvas Container -->
+    <div class="max-w-5xl mx-auto pdf-container bg-white rounded-xl overflow-hidden">
+        <canvas id="pdf-render" class="w-full"></canvas>
+    </div>
+
+    <!-- Page Navigation Input -->
+    <div class="max-w-5xl mx-auto mt-4 text-center">
+        <input 
+            type="number" 
+            id="page-input" 
+            placeholder="Go to page..." 
+            class="px-4 py-2 rounded-lg border-2 border-white focus:border-indigo-300 outline-none text-center"
+            onchange="goToPage()"
+            min="1"
+        >
+    </div>
+
+    <footer class="max-w-5xl mx-auto mt-8 text-center text-white/80 text-sm pb-8">
+        <p>📖 الدوال | Interactive PDF Viewer</p>
+    </footer>
+
+    <script>
+        // Initialize PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        let pdfDoc = null;
+        let pageNum = 1;
+        let pageRendering = false;
+        let pageNumPending = null;
+        let scale = 1.5;
+        const canvas = document.getElementById('pdf-render');
+        const ctx = canvas.getContext('2d');
+
+
+        const url = '2.2.pdf';
+
+        function loadPDF() {
+            pdfjsLib.getDocument(url).promise.then(function(pdfDoc_) {
+                pdfDoc = pdfDoc_;
+                document.getElementById('total-pages').textContent = pdfDoc.numPages;
+                renderPage(pageNum);
+            }).catch(error => {
+                console.error('Error loading PDF:', error);
+                alert('Error loading PDF. Please make sure the file exists in the same folder as this HTML file.');
+            });
+        }
+
+        function renderPage(num) {
+            pageRendering = true;
+            
+            pdfDoc.getPage(num).then(function(page) {
+                const viewport = page.getViewport({scale: scale});
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                const renderContext = {
+                    canvasContext: ctx,
+                    viewport: viewport
+                };
+                
+                const renderTask = page.render(renderContext);
+
+                renderTask.promise.then(function() {
+                    pageRendering = false;
+                    if (pageNumPending !== null) {
+                        renderPage(pageNumPending);
+                        pageNumPending = null;
+                    }
+                });
+            });
+
+            document.getElementById('current-page').textContent = num;
+            document.getElementById('page-input').value = num;
+        }
+
+        function queueRenderPage(num) {
+            if (pageRendering) {
+                pageNumPending = num;
+            } else {
+                renderPage(num);
+            }
+        }
+
+        function prevPage() {
+            if (pageNum <= 1) return;
+            pageNum--;
+            queueRenderPage(pageNum);
+        }
+
+        function nextPage() {
+            if (pageNum >= pdfDoc.numPages) return;
+            pageNum++;
+            queueRenderPage(pageNum);
+        }
+
+        function goToPage() {
+            const input = document.getElementById('page-input');
+            const newPage = parseInt(input.value);
+            
+            if (newPage >= 1 && newPage <= pdfDoc.numPages) {
+                pageNum = newPage;
+                queueRenderPage(pageNum);
+            } else {
+                alert('Please enter a valid page number between 1 and ' + pdfDoc.numPages);
+            }
+        }
+
+        function zoomIn() {
+            scale += 0.25;
+            queueRenderPage(pageNum);
+        }
+
+        function zoomOut() {
+            if (scale > 0.5) {
+                scale -= 0.25;
+                queueRenderPage(pageNum);
+            }
+        }
+
+        function resetZoom() {
+            scale = 1.5;
+            queueRenderPage(pageNum);
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'ArrowLeft') {
+                prevPage();
+            } else if (e.key === 'ArrowRight') {
+                nextPage();
+            }
+        });
+
+        // Load PDF on page load
+        window.addEventListener('DOMContentLoaded', loadPDF);
+    </script>
+</body>
+</html>
